@@ -1,64 +1,103 @@
-/**
- * Mock service boundary for the future FastAPI tutor API.
- * Replace these implementations with fetch calls using VITE_API_BASE_URL when the API is available.
- * Never place provider credentials in this client-side module.
+﻿/**
+ * FastAPI-backed tutor service for the Mavro frontend.
  */
-const MOCK_DELAY_MS = 850
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
-const wait = (duration) => new Promise((resolve) => window.setTimeout(resolve, duration))
+const normalizeApiUrl = (url) => String(url ?? '').trim().replace(/\/$/, '')
 
-/** @typedef {{ id: string, role: 'tutor' | 'student', text: string, createdAt: string }} ChatMessageData */
-/** @typedef {{ kind: 'highlight-step', stepId: string } | { kind: 'clear-highlight' }} WhiteboardAction */
-/** @typedef {{ message: string, whiteboardActions: WhiteboardAction[] }} TutorReply */
+export function createConversationId() {
+  if (globalThis.crypto && typeof globalThis.crypto.randomUUID === 'function') return globalThis.crypto.randomUUID()
+  return `conversation-${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
 
-/** @param {string} prompt @returns {Promise<TutorReply>} */
-export async function sendMessage(prompt) {
-  await wait(MOCK_DELAY_MS)
+/**
+ * Build the whiteboardActions array that TutorDashboard.applyReply understands.
+ * We emit one 'highlight-step' action per step that contains a highlight_code action
+ * so the lesson tab can visually advance. All other step data is passed through as-is.
+ *
+ * @param {any} reply - raw API response
+ * @returns {Array<{ kind: 'highlight-step', stepId: string } | { kind: 'clear-highlight' }>}
+ */
+function buildWhiteboardActions(reply) {
+  const actions = []
+  const steps = Array.isArray(reply?.steps) ? reply.steps : []
+
+  for (const step of steps) {
+    // The backend serialises 'id' aliased as 'step_id' in the Pydantic model; the
+    // raw JSON key coming over the wire is 'step_id'. Support both forms.
+    const stepId = String(step?.step_id ?? step?.id ?? '').trim()
+    if (!stepId) continue
+    const whiteboardActions = Array.isArray(step.whiteboard_actions) ? step.whiteboard_actions : []
+    if (whiteboardActions.some((a) => a && a.type === 'highlight_code')) {
+      actions.push({ kind: 'highlight-step', stepId })
+    }
+  }
+
+  // If no highlight_code actions were present but the reply has steps, mark the
+  // first step active so the lesson panel advances.
+  if (!actions.length && steps.length > 0) {
+    const firstId = String(steps[0]?.step_id ?? steps[0]?.id ?? '').trim()
+    if (firstId) actions.push({ kind: 'highlight-step', stepId: firstId })
+  }
+
+  return actions
+}
+
+async function requestTutorChat(payload) {
+  const url = `${normalizeApiUrl(API_BASE_URL)}/api/tutor/chat`
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}))
+    const detail = Array.isArray(data?.detail)
+      ? data.detail.map((item) => item.msg || item).join(', ')
+      : data?.detail || 'The tutor could not answer that question right now.'
+    throw new Error(typeof detail === 'string' ? detail : 'The tutor could not answer that question right now.')
+  }
+
+  const data = await response.json()
+  const message = String(data.message ?? 'The tutor has a follow-up.')
+  const normalized = {
+    lesson_id: data.lesson_id || null,
+    mode: data.mode || 'new_lesson',
+    message,
+    spoken_explanation: data.spoken_explanation || message,
+    lesson_title: data.lesson_title || 'Lesson update',
+    board_summary: data.board_summary || '',
+    follow_up_question: data.follow_up_question || null,
+    steps: Array.isArray(data.steps) ? data.steps : [],
+    whiteboardActions: buildWhiteboardActions(data),
+  }
+  return normalized
+}
+
+/** @param {string} prompt @param {string} conversationId @param {string} boardSummary @returns {Promise<any>} */
+export async function sendMessage(prompt, conversationId, boardSummary = '') {
   const cleanPrompt = String(prompt ?? '').trim()
   if (!cleanPrompt) throw new Error('Write a question before sending it.')
+  if (!conversationId) throw new Error('A conversation ID is required.')
 
-  const lowerPrompt = cleanPrompt.toLowerCase()
-  let message = 'That’s a great question. Look at the highlighted part of the lesson, then follow the values from one step to the next. You can draw or add notes on the board as you think it through.'
-  let stepId = 'step-1'
-
-  if (lowerPrompt.includes('stop') || lowerPrompt.includes('2')) {
-    message = 'The loop stops after i = 2 because range(3) produces 0, 1, and 2. Once those three values have been used, there is no next value, so the loop finishes. Notice that 3 itself is not included.'
-    stepId = 'step-3'
-  } else if (lowerPrompt.includes('another') || lowerPrompt.includes('example')) {
-    message = 'Try range(4): Python gives the loop i = 0, then 1, then 2, then 3. The stop value (4) is still excluded. The same pattern applies: start included, stop excluded.'
-    stepId = 'step-2'
-  } else if (lowerPrompt.includes('practice') || lowerPrompt.includes('question')) {
-    message = 'Practice: if the code says for i in range(2), what values will i take, and what will print(i) show? Write your prediction on the board before checking: the values start at 0 and stop just before 2.'
-    stepId = 'step-1'
-  } else if (lowerPrompt.includes('explain') || lowerPrompt.includes('step')) {
-    message = 'The loop repeats its indented body once for each value in range(3). First i is 0, then 1, then 2. Each time, print(i) writes that current value to the output.'
-    stepId = 'step-2'
-  }
-
-  return {
-    message,
-    whiteboardActions: [{ kind: 'highlight-step', stepId }],
-  }
+  return requestTutorChat({
+    conversation_id: conversationId,
+    message: cleanPrompt,
+    board_summary: boardSummary || 'The whiteboard is empty.',
+  })
 }
 
-/** @param {string} stepId @returns {Promise<TutorReply>} */
-export async function requestExplanation(stepId) {
-  await wait(500)
-  const validStep = ['step-1', 'step-2', 'step-3'].includes(stepId) ? stepId : 'step-1'
-  return {
-    message: `Let’s focus on ${validStep.replace('-', ' ')}. In this loop, range(3) supplies one value at a time, and the indented print statement runs using that value.`,
-    whiteboardActions: [{ kind: 'highlight-step', stepId: validStep }],
-  }
+/** @param {string} stepId @param {string} conversationId @param {string} boardSummary @returns {Promise<any>} */
+export async function requestExplanation(stepId, conversationId, boardSummary = '') {
+  const question = stepId
+    ? `Explain step ${stepId} of the current lesson in more detail.`
+    : 'Give me a summary of the current lesson.'
+  return sendMessage(question, conversationId, boardSummary)
 }
 
-/** @param {string} topic @returns {Promise<TutorReply>} */
-export async function requestWhiteboardUpdate(topic) {
-  await wait(500)
-  const lowerTopic = String(topic ?? '').toLowerCase()
-  const stepId = lowerTopic.includes('stop') ? 'step-3' : lowerTopic.includes('output') ? 'step-2' : 'step-1'
-  return {
-    message: 'I’ve brought the related part of the example into focus. The lesson stays intact while your own notes and drawings remain on a separate layer.',
-    whiteboardActions: [{ kind: 'highlight-step', stepId }],
-  }
+/** @param {string} topic @param {string} conversationId @param {string} boardSummary @returns {Promise<any>} */
+export async function requestWhiteboardUpdate(topic, conversationId, boardSummary = '') {
+  const cleanTopic = String(topic ?? '').trim() || 'this lesson'
+  return sendMessage(`Focus on ${cleanTopic} in the current lesson.`, conversationId, boardSummary)
 }

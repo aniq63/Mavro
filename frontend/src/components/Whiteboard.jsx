@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, Eraser, Maximize2, MessageSquareText, Minimize2, Sparkles, X } from 'lucide-react'
+import { Check, ChevronDown, Eraser, Maximize2, MessageSquareText, Minimize2, Pause, Play, RotateCcw, Sparkles, Square, X } from 'lucide-react'
 import WhiteboardToolbar from './WhiteboardToolbar.jsx'
-import { loopLesson } from '../services/whiteboardModel.js'
+import { BOARD_HEIGHT, BOARD_WIDTH, COLORS, applyObjectUpdates, wrapText } from '../services/lessonLayout.js'
 
-const BOARD_WIDTH = 1000
-const BOARD_HEIGHT = 650
 const makeId = () => globalThis.crypto?.randomUUID?.() ?? `element-${Date.now()}-${Math.random().toString(16).slice(2)}`
+
+function truncate(value, max) {
+  const text = String(value ?? '')
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text
+}
 
 function distanceToSegment(point, start, end) {
   const dx = end.x - start.x
@@ -59,49 +62,184 @@ function BoardElement({ element, selected, onPointerDown }) {
   return <text {...common} x={element.x} y={element.y} fill={element.color} fontSize={element.fontSize} fontFamily="Inter, sans-serif">{element.text}</text>
 }
 
-function TeachingLayer({ activeStep }) {
+function SceneCode({ item, activeLine }) {
+  const lines = Array.isArray(item.lines) ? item.lines : []
+  const highlightedLine = activeLine ?? item.highlightedLine ?? 0
+  const lineHeight = 21
+  const top = item.y + 40
+  const visibleLines = Math.max(1, Math.floor((item.height - 38) / lineHeight))
+  const maxChars = Math.max(12, Math.floor((item.width - 66) / 7.1))
   return (
-    <g className="teaching-layer" aria-label="AI teaching example">
-      <g transform="translate(15 -32) scale(1.35 1.1)">
-      <text x="65" y="56" className="board-kicker">PYTHON · CONTROL FLOW</text>
-      <text x="65" y="91" className="board-title">A for loop, step by step</text>
-      <text x="65" y="119" className="board-subtitle">One instruction, three values. Let’s trace what happens.</text>
-      <rect x="65" y="145" width="378" height="142" rx="12" className="lesson-code-card" />
-      <text x="87" y="174" className="code-caption">YOUR CODE</text>
-      <line x1="87" y1="188" x2="421" y2="188" className="code-separator" />
-      <text x="91" y="220" className="code-line-number">1</text><text x="91" y="253" className="code-line-number">2</text>
-      <rect x="119" y="200" width="302" height="28" rx="5" className={activeStep === 'step-1' ? 'code-highlight' : 'code-highlight code-highlight-muted'} />
-      <rect x="119" y="233" width="302" height="28" rx="5" className="code-highlight-secondary" />
-      <text x="133" y="220" className="lesson-code"><tspan className="token-purple">for</tspan><tspan> i </tspan><tspan className="token-purple">in</tspan><tspan> </tspan><tspan className="token-blue">range</tspan><tspan>(</tspan><tspan className="token-orange">3</tspan><tspan>):</tspan></text>
-      <text x="133" y="253" className="lesson-code"><tspan>    </tspan><tspan className="token-blue">print</tspan><tspan>(i)</tspan></text>
-      <rect x="65" y="307" width="378" height="140" rx="12" className="output-card" />
-      <text x="87" y="337" className="code-caption">THE OUTPUT</text>
-      <rect x="347" y="320" width="76" height="23" rx="11.5" className="output-pill" />
-      <circle cx="360" cy="331.5" r="3" className="output-dot" /><text x="369" y="335" className="output-pill-text">3 lines</text>
-      <rect x="87" y="353" width="334" height="73" rx="7" className="output-terminal" />
-      <text x="104" y="378" className={`output-line${activeStep === 'step-1' ? ' output-line-active' : ''}`}>0</text>
-      <text x="104" y="399" className={`output-line${activeStep === 'step-2' ? ' output-line-active' : ''}`}>1</text>
-      <text x="104" y="420" className={`output-line${activeStep === 'step-3' ? ' output-line-active' : ''}`}>2</text>
-      <text x="65" y="477" className="steps-title">FOLLOW THE VALUE OF <tspan className="token-blue">i</tspan></text>
-      {loopLesson.steps.map((step, index) => {
-        const x = 65 + index * 196
-        const active = step.id === activeStep
-        return <g key={step.id} className={`lesson-step${active ? ' is-current' : ''}`}>
-          <rect x={x} y="494" width="174" height="91" rx="10" className="lesson-step-card" />
-          <text x={x + 15} y="517" className="lesson-step-label">{step.label}</text>
-          <text x={x + 15} y="550" className="lesson-step-value">{step.codeLine}</text>
-          <text x={x + 15} y="570" className="lesson-step-output">prints “{step.output}”</text>
-          {index < 2 && <path d={`M${x + 177} 539h14`} className="step-connector" markerEnd="url(#teaching-arrow-head)" />}
-        </g>
+    <g className="scene-code">
+      <rect x={item.x} y={item.y} width={item.width} height={item.height} rx="12" className="lesson-code-card" />
+      <text x={item.x + 18} y={item.y + 22} className="code-caption">{truncate(item.label || 'CODE', 30)}</text>
+      <line x1={item.x + 16} x2={item.x + item.width - 16} y1={item.y + 30} y2={item.y + 30} className="code-separator" />
+      {lines.slice(0, visibleLines).map((line, index) => {
+        const lineY = top + index * lineHeight
+        const isActive = highlightedLine === index + 1
+        return (
+          <g key={`${item.id}-line-${index}`} className="wb-line-reveal" style={{ animationDelay: `${Math.min(index, 10) * 70}ms` }}>
+            {isActive && <rect x={item.x + 8} y={lineY - 15} width={item.width - 16} height={lineHeight - 2} rx="5" className="code-highlight" />}
+            <text x={item.x + 20} y={lineY} className="code-line-number">{String(index + 1).padStart(2, '0')}</text>
+            <text x={item.x + 46} y={lineY} className="lesson-code">{truncate(line || ' ', maxChars)}</text>
+          </g>
+        )
       })}
-      <text x="65" y="615" className="lesson-footnote">range(3) includes 0 and stops before 3.</text>
-      </g>
+    </g>
+  )
+}
+
+function SceneVariable({ item, active }) {
+  return (
+    <g className={`scene-state${active ? ' is-active' : ''}`}>
+      <rect x={item.x} y={item.y} width={item.width} height={item.height} rx="9" className="lesson-state-card" />
+      <text x={item.x + 12} y={item.y + 16} className="state-label">{truncate(item.variableName || 'value', 20)}</text>
+      <text x={item.x + 12} y={item.y + 35} className="state-value">{truncate(item.value || '—', 28)}</text>
+    </g>
+  )
+}
+
+function SceneOutput({ item, active }) {
+  return (
+    <g className={`scene-output${active ? ' is-active' : ''}`}>
+      <rect x={item.x} y={item.y} width={item.width} height={item.height} rx="8" className="lesson-output-card" />
+      <text x={item.x + 12} y={item.y + item.height / 2 + 4} className="lesson-output-text">→ {truncate(item.value || '—', 34)}</text>
+    </g>
+  )
+}
+
+function SceneText({ item }) {
+  const role = item.role || 'note'
+  const isEquation = role === 'equation'
+  const isHeading = role === 'heading'
+  const charsPerLine = isEquation ? 10 : isHeading ? 9.5 : 6.4
+  const chars = Math.max(14, Math.floor(item.width / charsPerLine))
+  const lines = wrapText(item.value, chars)
+  const x = item.align === 'middle' ? item.x + item.width / 2 : item.x
+  const startY = item.y + (isEquation ? 31 : isHeading ? 21 : 17)
+  const lineHeight = isEquation ? 31 : isHeading ? 21 : 16
+  const className = isEquation ? 'lesson-equation-text' : isHeading ? 'lesson-heading-text' : 'lesson-note-text'
+  return (
+    <text x={x} y={startY} textAnchor={item.align === 'middle' ? 'middle' : 'start'} className={className}>
+      {lines.map((line, index) => (
+        <tspan key={`${item.id}-text-${index}`} x={x} dy={index === 0 ? 0 : lineHeight}>{line}</tspan>
+      ))}
+    </text>
+  )
+}
+
+function SceneShape({ item, active, isTop, isBottom, isFront, isBack }) {
+  const labelLines = wrapText(item.label, Math.max(8, Math.floor(item.width / 8)))
+  const labelStart = item.cy - (labelLines.length - 1) * 7 - (item.value ? 5 : 0)
+  return (
+    <g className={`scene-node${active ? ' is-active' : ''}`}>
+      {item.shapeType === 'ellipse' || item.shapeType === 'circle' ? (
+        <ellipse cx={item.cx} cy={item.cy} rx={item.width / 2} ry={item.height / 2} className="lesson-node" fill={active ? '#f4f2ff' : '#fff'} stroke={item.color || COLORS.accent} />
+      ) : (
+        <rect x={item.x} y={item.y} width={item.width} height={item.height} rx="11" className="lesson-node" fill={active ? '#f4f2ff' : '#fff'} stroke={item.color || COLORS.accent} />
+      )}
+      {labelLines.slice(0, 2).map((line, index) => (
+        <text key={`${item.id}-label-${index}`} x={item.cx} y={labelStart + index * 14} textAnchor="middle" className="lesson-node-label">{line}</text>
+      ))}
+      {item.value && <text x={item.cx} y={item.cy + 17} textAnchor="middle" className="lesson-node-value">{truncate(item.value, 24)}</text>}
+      {isTop && <text x={item.cx} y={item.y - 12} textAnchor="middle" className="structure-label">TOP</text>}
+      {isBottom && <text x={item.cx} y={item.y + item.height + 17} textAnchor="middle" className="structure-label">BOTTOM</text>}
+      {isFront && <text x={item.x - 8} y={item.y - 10} textAnchor="start" className="structure-label">FRONT</text>}
+      {isBack && <text x={item.x + item.width} y={item.y - 10} textAnchor="end" className="structure-label">BACK</text>}
+    </g>
+  )
+}
+
+function SceneArrow({ item }) {
+  const geometry = item.geometry
+  if (!geometry) return null
+  const label = truncate(item.label, 30)
+  const labelWidth = Math.max(20, label.length * 5.4 + 12)
+  return (
+    <g className="scene-arrow">
+      <line x1={geometry.x1} y1={geometry.y1} x2={geometry.x2} y2={geometry.y2} stroke="#8a83bd" strokeWidth="1.8" markerEnd="url(#teaching-arrow-head)" />
+      {label && (
+        <>
+          <rect x={geometry.labelX - labelWidth / 2} y={geometry.labelY - 10} width={labelWidth} height="18" rx="9" className="arrow-label-bg" />
+          <text x={geometry.labelX} y={geometry.labelY + 4} textAnchor="middle" className="arrow-label">{label}</text>
+        </>
+      )}
+    </g>
+  )
+}
+
+function EmptyLessonLayer() {
+  return (
+    <g className="teaching-layer" aria-label="Waiting for AI lesson">
+      <text x="500" y="290" textAnchor="middle" className="board-subtitle">Ask a question to start your lesson.</text>
+      <text x="500" y="318" textAnchor="middle" className="lesson-footnote">Mavro will draw the explanation here, one step at a time.</text>
+    </g>
+  )
+}
+
+function LessonScene({ scene, revealedKeys, currentStepIndex }) {
+  if (!scene) return <EmptyLessonLayer />
+  const revealed = revealedKeys || new Set()
+  const visible = scene.objects
+    .filter((object) => revealed.has(object.key))
+    .map((object) => applyObjectUpdates(object, revealed))
+  const shapes = visible.filter((object) => object.kind === 'shape')
+  const arrows = visible.filter((object) => object.kind === 'arrow')
+  const codeBlocks = visible.filter((object) => object.kind === 'code')
+  const texts = visible.filter((object) => object.kind === 'text')
+  const variables = visible.filter((object) => object.kind === 'variable')
+  const outputs = visible.filter((object) => object.kind === 'output')
+  const allShapes = scene.objects.filter((object) => object.kind === 'shape')
+  const shapeRank = new Map(allShapes.map((object, index) => [object.id, index]))
+  const currentStep = scene.steps[currentStepIndex]
+  const activeTargets = new Set()
+  let activeCodeLine = 0
+
+  for (const action of currentStep?.actions || []) {
+    const raw = action.raw || {}
+    const target = String(raw.target_id ?? raw.id ?? '').trim()
+    if (target && ['show_variable', 'show_output', 'add_shape', 'update_element', 'highlight_element'].includes(action.type)) {
+      activeTargets.add(target)
+    }
+    if (action.type === 'highlight_code') activeCodeLine = Math.max(activeCodeLine, Number(raw.line) || 0)
+  }
+
+  return (
+    <g className="teaching-layer" aria-label={`Teaching lesson: ${scene.title}`}>
+      <text x="56" y="29" className="scene-kicker">{scene.layout.toUpperCase()} · LESSON</text>
+      <text x="56" y="52" className="scene-title">{truncate(scene.title, 54)}</text>
+      {currentStep && <text x="944" y="29" textAnchor="end" className="scene-step-label">{`STEP ${currentStepIndex + 1} / ${scene.steps.length}`}</text>}
+      {currentStep && <text x="944" y="52" textAnchor="end" className="scene-step-title">{truncate(currentStep.title, 34)}</text>}
+
+      {!visible.length && <text x="500" y="320" textAnchor="middle" className="lesson-footnote">Preparing the board…</text>}
+
+      {arrows.map((item) => <SceneArrow key={item.key} item={item} />)}
+      {shapes.map((item) => {
+        const rank = shapeRank.get(item.id)
+        return (
+          <SceneShape
+            key={item.key}
+            item={item}
+            active={activeTargets.has(item.id)}
+            isTop={scene.structure === 'stack' && rank === allShapes.length - 1}
+            isBottom={scene.structure === 'stack' && rank === 0}
+            isFront={scene.structure === 'queue' && rank === 0}
+            isBack={scene.structure === 'queue' && rank === allShapes.length - 1}
+          />
+        )
+      })}
+      {codeBlocks.map((item) => <SceneCode key={item.key} item={item} activeLine={activeCodeLine} />)}
+      {texts.map((item) => <SceneText key={item.key} item={item} />)}
+      {variables.map((item) => <SceneVariable key={item.key} item={item} active={activeTargets.has(item.id)} />)}
+      {outputs.map((item) => <SceneOutput key={item.key} item={item} active={activeTargets.has(item.id)} />)}
+
+      {scene.layout === 'code' && (variables.length > 0 || outputs.length > 0) && <text x={scene.hasCode && scene.structure ? 56 : 648} y={scene.hasCode && scene.structure ? 510 : 73} className="steps-title">STATE</text>}
       <text x="933" y="614" className="board-watermark">MAVRO · LESSON</text>
     </g>
   )
 }
 
-export default function Whiteboard({ elements, addElement, updateElement, removeElement, canUndo, canRedo, undo, redo, clear, activeStep, boardTab, setBoardTab, onAskAboutBoard }) {
+export default function Whiteboard({ elements, addElement, updateElement, removeElement, canUndo, canRedo, undo, redo, clear, boardTab, setBoardTab, onAskAboutBoard, scene, revealedKeys, playback }) {
   const svgRef = useRef(null)
   const whiteboardRef = useRef(null)
   const erasingRef = useRef(false)
@@ -118,6 +256,25 @@ export default function Whiteboard({ elements, addElement, updateElement, remove
   const [clearDialog, setClearDialog] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
 
+  const play = playback || {}
+  const lessonTitle = scene?.title || 'Ask a question to start'
+  const totalSteps = scene?.steps?.length || 0
+  const stepNumber = totalSteps ? Math.min((play.currentStepIndex || 0) + 1, totalSteps) : 0
+  const canControl = Boolean(scene && play.hasLesson)
+  const statusLabel = play.isPaused
+    ? 'PAUSED'
+    : play.status === 'loading'
+      ? 'PREPARING VOICE'
+      : play.isPlaying
+        ? 'NARRATING'
+        : play.isFinished
+          ? 'LESSON COMPLETE'
+          : scene
+            ? 'READY TO REPLAY'
+            : 'READY'
+  const progress = totalSteps ? Math.round((stepNumber / totalSteps) * 100) : 0
+  const toolHint = tool === 'pen' ? 'Draw anywhere on the board' : tool === 'text' ? 'Click to add a note' : tool === 'eraser' ? 'Drag over your marks to erase' : 'Click and drag to interact'
+
   useEffect(() => {
     const syncFullscreenState = () => setIsFullscreen(document.fullscreenElement === whiteboardRef.current)
     document.addEventListener('fullscreenchange', syncFullscreenState)
@@ -133,6 +290,13 @@ export default function Whiteboard({ elements, addElement, updateElement, remove
     } catch {
       setIsFullscreen(false)
     }
+  }
+
+  const togglePlayback = () => {
+    if (!canControl) return
+    if (play.isPlaying) play.pause()
+    else if (play.isPaused) play.resume()
+    else play.restart()
   }
 
   const pointFromEvent = (event) => {
@@ -250,20 +414,29 @@ export default function Whiteboard({ elements, addElement, updateElement, remove
   return (
     <section ref={whiteboardRef} className="whiteboard-panel-main" aria-label="Interactive teaching whiteboard">
       <div className="board-header">
-        <div className="board-heading-left"><span className="board-heading-icon"><Sparkles size={15} /></span><div><h2>Learning board</h2><p>Python basics <span>·</span> {loopLesson.title}</p></div></div>
-        <div className="board-header-actions"><span className="board-live-status"><i /> EXAMPLE LESSON</span><button type="button" className="board-icon-button" title="About this example" aria-label="About this example" onClick={onAskAboutBoard}><MessageSquareText size={16} /></button><button type="button" className="board-icon-button" title={isFullscreen ? 'Exit full screen' : 'Enter full screen'} aria-label={isFullscreen ? 'Exit full screen' : 'Enter full screen'} onClick={toggleFullscreen}>{isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</button></div>
+        <div className="board-heading-left"><span className="board-heading-icon"><Sparkles size={15} /></span><div><h2>Learning board</h2><p>{lessonTitle}</p></div></div>
+        <div className="board-header-actions">
+          <span className="board-live-status"><i /> {statusLabel}</span>
+          <div className="board-playback-controls" role="group" aria-label="Lesson narration controls">
+            <button type="button" className="board-icon-button" title={play.isPlaying ? 'Pause narration' : play.isPaused ? 'Resume narration' : 'Play lesson'} aria-label={play.isPlaying ? 'Pause narration' : play.isPaused ? 'Resume narration' : 'Play lesson'} onClick={togglePlayback} disabled={!canControl}>{play.isPlaying ? <Pause size={14} /> : <Play size={14} />}</button>
+            <button type="button" className="board-icon-button" title="Replay this step" aria-label="Replay this step" onClick={() => play.replay?.()} disabled={!canControl}><RotateCcw size={14} /></button>
+            <button type="button" className="board-icon-button" title="Stop narration" aria-label="Stop narration" onClick={() => play.stop?.()} disabled={!canControl}><Square size={12} /></button>
+          </div>
+          <button type="button" className="board-icon-button" title="Ask about this lesson" aria-label="Ask about this lesson" onClick={onAskAboutBoard}><MessageSquareText size={16} /></button>
+          <button type="button" className="board-icon-button" title={isFullscreen ? 'Exit full screen' : 'Enter full screen'} aria-label={isFullscreen ? 'Exit full screen' : 'Enter full screen'} onClick={toggleFullscreen}>{isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}</button>
+        </div>
       </div>
       <div className="board-tabs" role="tablist" aria-label="Whiteboard content">
         <button type="button" role="tab" aria-selected={boardTab === 'lesson'} className={boardTab === 'lesson' ? 'is-active' : ''} onClick={() => setBoardTab('lesson')}>Tutor lesson <span className="tab-dot" /></button>
         <button type="button" role="tab" aria-selected={boardTab === 'notes'} className={boardTab === 'notes' ? 'is-active' : ''} onClick={() => setBoardTab('notes')}>My notes {elements.length > 0 && <span className="notes-count">{elements.length}</span>}</button>
-        <span className="board-tab-hint"><span className="hint-dot" /> {tool === 'pen' ? 'Draw anywhere on the board' : tool === 'text' ? 'Click to add a note' : tool === 'eraser' ? 'Drag over your marks to erase' : 'Click and drag to interact'}</span>
+        <span className="board-tab-hint"><span className="hint-dot" /> {scene ? `Step ${stepNumber} of ${totalSteps} · narration leads each reveal` : toolHint}</span>
       </div>
       <WhiteboardToolbar tool={tool} setTool={setTool} color={color} setColor={setColor} width={width} setWidth={setWidth} canUndo={canUndo} canRedo={canRedo} undo={undo} redo={redo} onClear={handleClear} zoom={zoom} setZoom={setZoom} onResetView={() => setZoom(1)} />
       <div className={`board-viewport${tool === 'pen' || ['rectangle', 'ellipse', 'arrow'].includes(tool) ? ' is-drawing' : ''}${tool === 'eraser' ? ' is-erasing' : ''}`}>
-        {boardTab === 'lesson' ? <svg ref={svgRef} className="teaching-board" viewBox={`0 0 ${BOARD_WIDTH} ${BOARD_HEIGHT}`} role="img" aria-label="Whiteboard lesson: Python for loop range 3 prints 0, 1, and 2" preserveAspectRatio="xMidYMid meet" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
-          <defs><pattern id="board-grid" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#e7e9f1" /></pattern><marker id="student-arrow-head" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 8 4 0 8" fill="none" stroke="context-stroke" strokeWidth="1.4" /></marker><marker id="teaching-arrow-head" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0 0 6 3 0 6" fill="none" stroke="#9d9bb7" strokeWidth="1.2" /></marker></defs>
+        {boardTab === 'lesson' ? <svg ref={svgRef} className="teaching-board" viewBox={`0 0 ${BOARD_WIDTH} ${BOARD_HEIGHT}`} role="img" aria-label={`Whiteboard lesson: ${lessonTitle}`} preserveAspectRatio="xMidYMid meet" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
+          <defs><pattern id="board-grid" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#e7e9f1" /></pattern><marker id="student-arrow-head" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 8 4 0 8" fill="none" stroke="context-stroke" strokeWidth="1.4" /></marker><marker id="teaching-arrow-head" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0 0 7 3.5 0 7" fill="none" stroke="#8a83bd" strokeWidth="1.4" /></marker></defs>
           <rect width={BOARD_WIDTH} height={BOARD_HEIGHT} fill="#fdfdff" /><rect width={BOARD_WIDTH} height={BOARD_HEIGHT} fill="url(#board-grid)" />
-          <g transform={zoomTransform}><TeachingLayer activeStep={activeStep} /><rect className="student-hit-area" x="0" y="0" width={BOARD_WIDTH} height={BOARD_HEIGHT} fill="transparent" />{renderedElements.map((element) => <BoardElement key={element.id} element={element} selected={element.id === selectedId} onPointerDown={(event) => { event.stopPropagation(); onPointerDown(event) }} />)}{draft && !drag && <BoardElement element={draft} selected={false} />}</g>
+          <g transform={zoomTransform}><LessonScene scene={scene} revealedKeys={revealedKeys} currentStepIndex={play.currentStepIndex || 0} /><rect className="student-hit-area" x="0" y="0" width={BOARD_WIDTH} height={BOARD_HEIGHT} fill="transparent" />{renderedElements.map((element) => <BoardElement key={element.id} element={element} selected={element.id === selectedId} onPointerDown={(event) => { event.stopPropagation(); onPointerDown(event) }} />)}{draft && !drag && <BoardElement element={draft} selected={false} />}</g>
         </svg> : <svg ref={svgRef} className="teaching-board notes-board" viewBox={`0 0 ${BOARD_WIDTH} ${BOARD_HEIGHT}`} role="img" aria-label="Your notes whiteboard. Draw or write your own ideas here." preserveAspectRatio="xMidYMid meet" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
           <defs><pattern id="notes-grid" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#e7e9f1" /></pattern><marker id="student-arrow-head" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 8 4 0 8" fill="none" stroke="context-stroke" strokeWidth="1.4" /></marker></defs><rect width={BOARD_WIDTH} height={BOARD_HEIGHT} fill="#fdfdff" /><rect width={BOARD_WIDTH} height={BOARD_HEIGHT} fill="url(#notes-grid)" />
           {elements.length === 0 && !draft && <g className="board-empty-state"><rect x="245" y="227" width="510" height="190" rx="15" className="empty-state-card" /><circle cx="500" cy="278" r="24" className="empty-state-icon" /><path d="M490 278h20M500 268v20" className="empty-state-plus" /><text x="500" y="326" textAnchor="middle" className="empty-state-title">A space for your thinking</text><text x="500" y="352" textAnchor="middle" className="empty-state-copy">Choose a tool above and sketch, label, or work it out.</text><text x="500" y="379" textAnchor="middle" className="empty-state-shortcut">YOUR NOTES ARE SEPARATE FROM THE TUTOR LESSON</text></g>}
@@ -271,9 +444,10 @@ export default function Whiteboard({ elements, addElement, updateElement, remove
         </svg>}
         {textPrompt && <form className="board-text-prompt" style={textPromptStyle} onSubmit={saveText}><input autoFocus aria-label="Text to add to whiteboard" value={textValue} onChange={(event) => setTextValue(event.target.value)} placeholder="Write a note…" maxLength={120} /><button type="submit" aria-label="Add text" disabled={!textValue.trim()}><Check size={14} /></button><button type="button" aria-label="Cancel text" onClick={() => setTextPrompt(null)}><X size={14} /></button></form>}
         {selectedId && tool === 'select' && <button className="deselect-hint" type="button" onClick={() => setSelectedId(null)}><X size={12} /> Deselect</button>}
+        {boardTab === 'lesson' && scene && <div className="lesson-step-meter" aria-hidden="true"><span style={{ width: `${progress}%` }} /></div>}
       </div>
-      <div className="board-footer"><div><span className="board-cursor-icon">⌖</span><span>Student notes and tutor visuals are kept separate</span></div><button type="button" onClick={onAskAboutBoard}>Ask about this lesson <ChevronDown size={13} /></button></div>
-      {clearDialog && <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setClearDialog(false) }}><section className="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="clear-title"><div className="confirm-icon"><Eraser size={18} /></div><h3 id="clear-title">Clear your notes?</h3><p>This removes your drawings and notes from the board. The tutor’s example lesson will stay untouched.</p><div className="confirm-actions"><button type="button" className="cancel-clear" onClick={() => setClearDialog(false)}>Keep notes</button><button type="button" className="confirm-clear" onClick={() => { clear(); setSelectedId(null); setClearDialog(false) }}>Clear notes</button></div></section></div>}
+      <div className="board-footer"><div><span className="board-cursor-icon">⌖</span><span>{scene ? 'Narration advances each step · notes stay separate' : 'Student notes and tutor visuals are kept separate'}</span></div><button type="button" onClick={onAskAboutBoard}>Ask about this lesson <ChevronDown size={13} /></button></div>
+      {clearDialog && <div className="dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setClearDialog(false) }}><section className="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="clear-title"><div className="confirm-icon"><Eraser size={18} /></div><h3 id="clear-title">Clear your notes?</h3><p>This removes your drawings and notes from the board. The tutor's lesson will stay untouched.</p><div className="confirm-actions"><button type="button" className="cancel-clear" onClick={() => setClearDialog(false)}>Keep notes</button><button type="button" className="confirm-clear" onClick={() => { clear(); setSelectedId(null); setClearDialog(false) }}>Clear notes</button></div></section></div>}
     </section>
   )
 }

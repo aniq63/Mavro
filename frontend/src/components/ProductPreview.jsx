@@ -11,7 +11,7 @@ export default function ProductPreview() {
         </div>
         <div className="classroom-body">
           <div className="tutor-panel">
-            <div className="tutor-avatar"><span className="avatar-spark">✳</span><span className="avatar-face">☺</span></div>
+            <div className="tutor-avatar"><span className="avatar-spark">✳</span><img src="/Friendly%203D%20Coding%20Tutor%20Avatar.png" alt="Mavro, your AI tutor" /></div>
             <span className="panel-label">AI TUTOR</span>
             <p>“Let’s trace this loop step by step.”</p>
             <div className="voice-wave" aria-hidden="true"><span /><span /><span /><span /><span /><span /><span /><span /><span /><span /><span /><span /><span /><span /></div>

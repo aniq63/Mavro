@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, Eraser, Maximize2, MessageSquareText, Minimize2, Pause, Play, RotateCcw, Sparkles, Square, X } from 'lucide-react'
 import WhiteboardToolbar from './WhiteboardToolbar.jsx'
 import { BOARD_HEIGHT, BOARD_WIDTH, COLORS, applyObjectUpdates, wrapText } from '../services/lessonLayout.js'
+import { PALETTE } from '../theme.js'
 
 const makeId = () => globalThis.crypto?.randomUUID?.() ?? `element-${Date.now()}-${Math.random().toString(16).slice(2)}`
 
@@ -134,9 +135,9 @@ function SceneShape({ item, active, isTop, isBottom, isFront, isBack }) {
   return (
     <g className={`scene-node${active ? ' is-active' : ''}`}>
       {item.shapeType === 'ellipse' || item.shapeType === 'circle' ? (
-        <ellipse cx={item.cx} cy={item.cy} rx={item.width / 2} ry={item.height / 2} className="lesson-node" fill={active ? '#f4f2ff' : '#fff'} stroke={item.color || COLORS.accent} />
+        <ellipse cx={item.cx} cy={item.cy} rx={item.width / 2} ry={item.height / 2} className="lesson-node" fill={active ? COLORS.accentSoft : PALETTE.white} stroke={item.color || COLORS.accent} />
       ) : (
-        <rect x={item.x} y={item.y} width={item.width} height={item.height} rx="11" className="lesson-node" fill={active ? '#f4f2ff' : '#fff'} stroke={item.color || COLORS.accent} />
+        <rect x={item.x} y={item.y} width={item.width} height={item.height} rx="11" className="lesson-node" fill={active ? COLORS.accentSoft : PALETTE.white} stroke={item.color || COLORS.accent} />
       )}
       {labelLines.slice(0, 2).map((line, index) => (
         <text key={`${item.id}-label-${index}`} x={item.cx} y={labelStart + index * 14} textAnchor="middle" className="lesson-node-label">{line}</text>
@@ -157,7 +158,7 @@ function SceneArrow({ item }) {
   const labelWidth = Math.max(20, label.length * 5.4 + 12)
   return (
     <g className="scene-arrow">
-      <line x1={geometry.x1} y1={geometry.y1} x2={geometry.x2} y2={geometry.y2} stroke="#8a83bd" strokeWidth="1.8" markerEnd="url(#teaching-arrow-head)" />
+      <line x1={geometry.x1} y1={geometry.y1} x2={geometry.x2} y2={geometry.y2} stroke={COLORS.boardArrow} strokeWidth="1.8" markerEnd="url(#teaching-arrow-head)" />
       {label && (
         <>
           <rect x={geometry.labelX - labelWidth / 2} y={geometry.labelY - 10} width={labelWidth} height="18" rx="9" className="arrow-label-bg" />
@@ -245,7 +246,7 @@ export default function Whiteboard({ elements, addElement, updateElement, remove
   const erasingRef = useRef(false)
   const erasedIdsRef = useRef(new Set())
   const [tool, setTool] = useState('select')
-  const [color, setColor] = useState('#6558e8')
+  const [color, setColor] = useState(PALETTE.violet)
   const [width, setWidth] = useState(4)
   const [zoom, setZoom] = useState(1)
   const [draft, setDraft] = useState(null)
@@ -434,11 +435,11 @@ export default function Whiteboard({ elements, addElement, updateElement, remove
       <WhiteboardToolbar tool={tool} setTool={setTool} color={color} setColor={setColor} width={width} setWidth={setWidth} canUndo={canUndo} canRedo={canRedo} undo={undo} redo={redo} onClear={handleClear} zoom={zoom} setZoom={setZoom} onResetView={() => setZoom(1)} />
       <div className={`board-viewport${tool === 'pen' || ['rectangle', 'ellipse', 'arrow'].includes(tool) ? ' is-drawing' : ''}${tool === 'eraser' ? ' is-erasing' : ''}`}>
         {boardTab === 'lesson' ? <svg ref={svgRef} className="teaching-board" viewBox={`0 0 ${BOARD_WIDTH} ${BOARD_HEIGHT}`} role="img" aria-label={`Whiteboard lesson: ${lessonTitle}`} preserveAspectRatio="xMidYMid meet" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
-          <defs><pattern id="board-grid" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#e7e9f1" /></pattern><marker id="student-arrow-head" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 8 4 0 8" fill="none" stroke="context-stroke" strokeWidth="1.4" /></marker><marker id="teaching-arrow-head" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0 0 7 3.5 0 7" fill="none" stroke="#8a83bd" strokeWidth="1.4" /></marker></defs>
-          <rect width={BOARD_WIDTH} height={BOARD_HEIGHT} fill="#fdfdff" /><rect width={BOARD_WIDTH} height={BOARD_HEIGHT} fill="url(#board-grid)" />
+          <defs><pattern id="board-grid" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill={PALETTE.line} /></pattern><marker id="student-arrow-head" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 8 4 0 8" fill="none" stroke="context-stroke" strokeWidth="1.4" /></marker><marker id="teaching-arrow-head" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0 0 7 3.5 0 7" fill="none" stroke={COLORS.boardArrow} strokeWidth="1.4" /></marker></defs>
+          <rect width={BOARD_WIDTH} height={BOARD_HEIGHT} fill={PALETTE.white} /><rect width={BOARD_WIDTH} height={BOARD_HEIGHT} fill="url(#board-grid)" />
           <g transform={zoomTransform}><LessonScene scene={scene} revealedKeys={revealedKeys} currentStepIndex={play.currentStepIndex || 0} /><rect className="student-hit-area" x="0" y="0" width={BOARD_WIDTH} height={BOARD_HEIGHT} fill="transparent" />{renderedElements.map((element) => <BoardElement key={element.id} element={element} selected={element.id === selectedId} onPointerDown={(event) => { event.stopPropagation(); onPointerDown(event) }} />)}{draft && !drag && <BoardElement element={draft} selected={false} />}</g>
         </svg> : <svg ref={svgRef} className="teaching-board notes-board" viewBox={`0 0 ${BOARD_WIDTH} ${BOARD_HEIGHT}`} role="img" aria-label="Your notes whiteboard. Draw or write your own ideas here." preserveAspectRatio="xMidYMid meet" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
-          <defs><pattern id="notes-grid" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#e7e9f1" /></pattern><marker id="student-arrow-head" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 8 4 0 8" fill="none" stroke="context-stroke" strokeWidth="1.4" /></marker></defs><rect width={BOARD_WIDTH} height={BOARD_HEIGHT} fill="#fdfdff" /><rect width={BOARD_WIDTH} height={BOARD_HEIGHT} fill="url(#notes-grid)" />
+          <defs><pattern id="notes-grid" width="24" height="24" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill={PALETTE.line} /></pattern><marker id="student-arrow-head" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 8 4 0 8" fill="none" stroke="context-stroke" strokeWidth="1.4" /></marker></defs><rect width={BOARD_WIDTH} height={BOARD_HEIGHT} fill={PALETTE.white} /><rect width={BOARD_WIDTH} height={BOARD_HEIGHT} fill="url(#notes-grid)" />
           {elements.length === 0 && !draft && <g className="board-empty-state"><rect x="245" y="227" width="510" height="190" rx="15" className="empty-state-card" /><circle cx="500" cy="278" r="24" className="empty-state-icon" /><path d="M490 278h20M500 268v20" className="empty-state-plus" /><text x="500" y="326" textAnchor="middle" className="empty-state-title">A space for your thinking</text><text x="500" y="352" textAnchor="middle" className="empty-state-copy">Choose a tool above and sketch, label, or work it out.</text><text x="500" y="379" textAnchor="middle" className="empty-state-shortcut">YOUR NOTES ARE SEPARATE FROM THE TUTOR LESSON</text></g>}
           <g transform={zoomTransform}>{renderedElements.map((element) => <BoardElement key={element.id} element={element} selected={element.id === selectedId} onPointerDown={onPointerDown} />)}{draft && <BoardElement element={draft} selected={false} />}</g>
         </svg>}

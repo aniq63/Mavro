@@ -1,17 +1,91 @@
 :root {
+	color-scheme: light;
 	font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-	color: #17213b;
-	background: #fff;
 	font-synthesis: none;
 	text-rendering: optimizeLegibility;
 	-webkit-font-smoothing: antialiased;
 	-moz-osx-font-smoothing: grayscale;
 	font-optical-sizing: auto;
 	scroll-behavior: smooth;
+
+	--ink: #17213a;
+	--ink-soft: #2a3552;
+	--ink-deep: #10182b;
+	--muted: #55607a;
+	--muted-soft: #5f6a84;
+	--muted-strong: #4f5a74;
+	--muted-faint: #8a93a8;
+
+	--violet: #635bee;
+	--violet-dark: #4d45d6;
+	--violet-deep: #3b3183;
+	--violet-deep-2: #4a3da8;
+	--violet-ink: #4a43b8;
+	--violet-light: #8178f7;
+	--violet-pale: #c9c2ff;
+	--violet-soft: #eeeafe;
+	--violet-faint: #f6f4ff;
+	--violet-wash: #f4f2ff;
+	--violet-line: #ddd8fb;
+	--violet-line-strong: #bfb7f2;
+
+	--teal: #18a999;
+	--teal-ink: #08746a;
+	--teal-soft: #e4f6f3;
+	--teal-line: #b7e3dd;
+
+	--paper: #fafafe;
+	--white: #ffffff;
+	--lavender: var(--violet-soft);
+	--line: #e4e5f0;
+	--line-subtle: #eff0f5;
+	--line-strong: #d5d8e6;
+	--disabled: #cbd0dc;
+	--disabled-ink: var(--muted-faint);
+
+	--success: var(--teal);
+	--success-ink: var(--teal-ink);
+	--success-soft: var(--teal-soft);
+	--success-line: var(--teal-line);
+	--warning: #b7791f;
+	--warning-ink: #8a5a12;
+	--warning-soft: #fff6e5;
+	--warning-line: #f0d9ae;
+	--warning-accent: #e0a343;
+	--error: #c2413b;
+	--error-ink: #a8322d;
+	--error-soft: #fff4f3;
+	--error-line: #f1c9c6;
+
+	--syntax-purple: #6d5bd0;
+	--syntax-blue: #2472a8;
+	--syntax-orange: #9a5a16;
+	--syntax-green: #08746a;
+
+	--board-arrow: #6f6a8d;
+	--shadow-rgb: 23 33 58;
+	--ink-rgb: 23 33 58;
+	--violet-rgb: 99 91 238;
+	--white-rgb: 255 255 255;
+	--line-rgb: 228 229 240;
+	--shadow-sm: 0 3px 10px rgb(var(--shadow-rgb) / 6%);
+	--shadow-md: 0 14px 32px rgb(var(--shadow-rgb) / 7%);
+	--shadow-lg: 0 22px 60px rgb(var(--shadow-rgb) / 9%);
+	--shadow-violet: 0 7px 16px rgb(var(--violet-rgb) / 17%);
+
+	color: var(--ink);
+	background: var(--paper);
 }
 
 * { box-sizing: border-box; }
-body { min-width: 320px; min-height: 100vh; margin: 0; }
+body { min-width: 320px; min-height: 100vh; margin: 0; color: var(--ink); background: var(--paper); }
 button, textarea { font: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
-::selection { color: #29245d; background: #e4e0ff; }
+button, input, select, textarea { caret-color: var(--violet); }
+button:disabled, input:disabled, select:disabled, textarea:disabled { cursor: not-allowed; }
+:where(a, button, input, select, textarea):focus-visible { outline: 2px solid var(--violet); outline-offset: 2px; }
+::selection { color: var(--violet-ink); background: var(--violet-soft); }
+
+.state-success, .is-success { color: var(--success-ink); border-color: var(--success-line); background: var(--success-soft); }
+.state-warning, .is-warning { color: var(--warning-ink); border-color: var(--warning-line); background: var(--warning-soft); }
+.state-error, .is-error { color: var(--error-ink); border-color: var(--error-line); background: var(--error-soft); }

@@ -1,5 +1,6 @@
 import { useRef } from 'react'
 import { ArrowUpRight, Circle, Eraser, Hand, Minus, MousePointer2, Pen, Redo2, RectangleHorizontal, RotateCcw, Type, Undo2 } from 'lucide-react'
+import { DRAW_COLORS } from '../theme.js'
 
 const tools = [
   { id: 'select', label: 'Select and move', Icon: MousePointer2 },
@@ -10,7 +11,7 @@ const tools = [
   { id: 'ellipse', label: 'Ellipse', Icon: Circle },
   { id: 'arrow', label: 'Arrow', Icon: ArrowUpRight },
 ]
-const swatches = ['#6558e8', '#26334f', '#3786c6', '#e47b73', '#46a67a', '#e09a43']
+const swatches = DRAW_COLORS
 
 export default function WhiteboardToolbar({ tool, setTool, color, setColor, width, setWidth, canUndo, canRedo, undo, redo, onClear, zoom, setZoom, onResetView }) {
   const colorInput = useRef(null)

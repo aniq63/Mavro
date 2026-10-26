@@ -5,18 +5,21 @@
  * geometry so the board never depends on arbitrary AI-generated coordinates.
  */
 
+import { PALETTE } from '../theme.js'
+
 export const BOARD_WIDTH = 1000
 export const BOARD_HEIGHT = 650
 
 const CODE_SLOT_ID = 'code-main'
 
 const COLORS = {
-  ink: '#2a344e',
-  muted: '#8a92a4',
-  accent: '#6558e8',
-  accentSoft: '#f2f0ff',
-  amber: '#c9822f',
-  green: '#3f9268',
+  ink: PALETTE.ink,
+  muted: PALETTE.muted,
+  accent: PALETTE.violet,
+  accentSoft: PALETTE.violetWash,
+  amber: PALETTE.syntaxOrange,
+  green: PALETTE.tealInk,
+  boardArrow: PALETTE.boardArrow,
 }
 
 const text = (value) => String(value ?? '').trim()

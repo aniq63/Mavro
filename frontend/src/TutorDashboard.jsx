@@ -19,6 +19,7 @@ export default function TutorDashboard() {
   const [error, setError] = useState('')
   // lessonData holds the full latest API response so the header and follow-ups stay in sync.
   const [lessonData, setLessonData] = useState(null)
+  const [lessonError, setLessonError] = useState('')
   const [boardTab, setBoardTab] = useState('notes')
   const [mobilePanel, setMobilePanel] = useState('board')
   const responseLock = useRef(false)
@@ -32,7 +33,16 @@ export default function TutorDashboard() {
 
     // Load the lesson into the progressive board sequencer. Returns true when the reply
     // contains a drawable scene, in which case we switch the board to the lesson tab.
-    if (playback.loadLesson(reply)) {
+    const loaded = playback.loadLesson(reply)
+    if (loaded?.empty) {
+      // The tutor answered in chat without changing the board.
+      setLessonError('')
+      if (!playback.scene) setBoardTab('lesson')
+    } else if (loaded) {
+      setLessonError('')
+      setBoardTab('lesson')
+    } else {
+      setLessonError('This reply did not include a drawable whiteboard scene. Ask again and Mavro will rebuild the board.')
       setBoardTab('lesson')
     }
   }, [playback])
@@ -47,6 +57,7 @@ export default function TutorDashboard() {
     responseLock.current = true
     playback.stop()
     setError('')
+    setLessonError('')
     setMessages((current) => [...current, makeMessage('student', trimmedText)])
     setIsLoading(true)
     try {
@@ -67,6 +78,7 @@ export default function TutorDashboard() {
     responseLock.current = true
     playback.stop()
     setError('')
+    setLessonError('')
     setIsLoading(true)
     try {
       const boardSummary = lessonData?.board_summary || 'The whiteboard is empty.'
@@ -86,6 +98,7 @@ export default function TutorDashboard() {
     conversationIdRef.current = createConversationId()
     setMessages([])
     setError('')
+    setLessonError('')
     // Clear lesson data so the whiteboard shows the "ask a question" state.
     setLessonData(null)
     setBoardTab('notes')
@@ -93,6 +106,7 @@ export default function TutorDashboard() {
 
   const startBlank = () => {
     playback.stop()
+    setLessonError('')
     setBoardTab('notes')
     setMobilePanel('board')
   }
@@ -121,7 +135,7 @@ export default function TutorDashboard() {
       <div className="dashboard-mobile-tabs" role="tablist" aria-label="Learning panels"><button type="button" role="tab" aria-selected={mobilePanel === 'board'} className={mobilePanel === 'board' ? 'is-active' : ''} onClick={() => setMobilePanel('board')}><PenLine size={15} /> Whiteboard</button><button type="button" role="tab" aria-selected={mobilePanel === 'chat'} className={mobilePanel === 'chat' ? 'is-active' : ''} onClick={() => setMobilePanel('chat')}><MessageSquare size={15} /> Ask Mavro{isLoading && <i className="mobile-thinking-dot" />}</button></div>
       <div className={`dashboard-layout${mobilePanel === 'chat' ? ' mobile-show-chat' : ' mobile-show-board'}`}>
         <section className={`dashboard-board${mobilePanel !== 'board' ? ' is-mobile-hidden' : ''}`}>
-          <Whiteboard elements={board.elements} addElement={board.addElement} updateElement={board.updateElement} removeElement={board.removeElement} canUndo={board.canUndo} canRedo={board.canRedo} undo={board.undo} redo={board.redo} clear={board.clear} boardTab={boardTab} setBoardTab={setBoardTab} onAskAboutBoard={handleAskAboutBoard} scene={playback.scene} revealedKeys={playback.revealedKeys} playback={playback} />
+          <Whiteboard elements={board.elements} addElement={board.addElement} updateElement={board.updateElement} removeElement={board.removeElement} canUndo={board.canUndo} canRedo={board.canRedo} undo={board.undo} redo={board.redo} clear={board.clear} boardTab={boardTab} setBoardTab={setBoardTab} onAskAboutBoard={handleAskAboutBoard} scene={playback.scene} revealedKeys={playback.revealedKeys} playback={playback} isLoading={isLoading} lessonError={lessonError} />
         </section>
         <ChatPanel messages={messages} isLoading={isLoading} error={error} onSend={handleSend} onReset={handleResetConversation} onAskAboutBoard={handleAskAboutBoard} mobileVisible={mobilePanel === 'chat'} lessonTitle={lessonLabel} />
       </div>

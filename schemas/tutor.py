@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -10,6 +10,8 @@ WhiteboardActionType = Literal[
     'highlight_code',
     'show_variable',
     'show_output',
+    'show_table',
+    'show_graph',
     'add_shape',
     'add_arrow',
     'update_element',
@@ -53,10 +55,18 @@ class WhiteboardAction(BaseModel):
     shape: str | None = None
     role: str | None = None
     target_id: str | None = None
+    title: str | None = None
+    align: str | None = None
+    x_label: str | None = None
+    y_label: str | None = None
+    columns: list[Any] | None = None
+    rows: list[Any] | None = None
+    points: list[Any] | None = None
+    series: list[dict[str, Any]] | None = None
     from_value: str | None = Field(default=None, alias='from')
     to_value: str | None = Field(default=None, alias='to')
 
-    @field_validator('text', 'code', 'variable_name', 'value', 'label', 'content', 'shape', 'role', 'target_id', 'from_value', 'to_value')
+    @field_validator('text', 'code', 'variable_name', 'value', 'label', 'content', 'shape', 'role', 'target_id', 'title', 'align', 'x_label', 'y_label', 'from_value', 'to_value')
     @classmethod
     def strip_string(cls, value: str | None) -> str | None:
         if value is None:

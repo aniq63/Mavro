@@ -32,7 +32,7 @@ The project includes a responsive marketing homepage, a tutor studio, a FastAPI 
 
 - **Question-based tutoring:** Students submit questions in the tutor chat. The backend sends the question, recent conversation history, and lesson context to Groq.
 - **Structured lessons:** Responses include a lesson title, written answer, spoken explanation, ordered steps, follow-up question, and board summary.
-- **Dynamic teaching board:** A layout engine maps validated lesson actions into code panels, concepts, diagrams, shapes, arrows, equations, variable state, and output.
+- **Dynamic teaching board:** A deterministic layout engine validates lesson actions and maps them into code panels, concepts, diagrams, shapes, arrows, equations, tables, graphs, variable state, and output panels. It packs content into safe regions, separates colliding elements, and auto-fits oversized scenes.
 - **Progressive lesson playback:** The playback hook coordinates narration with step-by-step visual reveals. Students can pause, resume, stop, replay, and restart a lesson.
 - **Student-created notes:** Freehand marks, text, shapes, arrows, selection, erasing, colors, zoom, undo/redo, and clear confirmation are separate from AI lesson scenes.
 - **Narration options:** The frontend can request server-generated speech from the voice API and falls back to the browser Speech Synthesis API when server TTS is unavailable.
@@ -253,12 +253,14 @@ The model describes teaching intent using supported action types such as:
 - `highlight_code`
 - `show_variable`
 - `show_output`
+- `show_table` (columns and numeric/text rows)
+- `show_graph` (numeric points rendered without evaluating an expression)
 - `add_shape`
 - `add_arrow`
 - `update_element`
 - `highlight_element`
 
-The frontend layout service converts those actions into a fixed board coordinate system. The model does not control arbitrary HTML, CSS, JavaScript, or SVG markup. Layout hints include `auto`, `code`, `flow`, `stack`, `queue`, `tree`, `equation`, and `concept`.
+The frontend layout service converts those actions into a fixed board coordinate system. The model does not control arbitrary HTML, CSS, JavaScript, or SVG markup. It validates table rows, graph points, action targets, and geometry before rendering, then packs each lesson layout into non-overlapping regions with a final auto-fit pass. Layout hints include `auto`, `code`, `flow`, `stack`, `queue`, `tree`, `equation`, and `concept`.
 
 For follow-ups, a stable lesson ID and stable action IDs allow the playback hook to preserve unchanged steps and reveal revised parts. A new lesson replaces the previous AI lesson scene. Student-created drawing elements are managed separately and are not cleared by loading a lesson.
 
@@ -270,13 +272,16 @@ Backend API regression tests are in `tests/test_tutor_api.py`. Run them from the
 python -m pytest tests/test_tutor_api.py -q
 ```
 
-The tests cover the health endpoint, chat and follow-up behavior, empty question validation, and normalization of flat whiteboard action payloads. Chat tests may use the backend's explicit unavailable-provider response if no Groq key is configured; this validates the application fallback, not live model quality.
+The backend tests cover the health endpoint, chat and follow-up behavior, empty question validation, rich table/graph action validation, and normalization of flat whiteboard action payloads. Chat tests may use the backend's explicit unavailable-provider response if no Groq key is configured; this validates the application fallback, not live model quality.
+
+`npm run test:layout` runs the frontend layout regression tests. They build representative code, equation, flow, concept, and invalid-data lessons, then assert that no rendered elements overlap, all geometry is finite, and oversized scenes stay inside the board.
 
 Frontend checks are defined in `frontend/package.json`:
 
 ```powershell
 cd frontend
 npm run lint
+npm run test:layout
 npm run build
 ```
 

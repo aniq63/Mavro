@@ -39,6 +39,37 @@ def test_empty_message_is_rejected():
     assert response.status_code == 422
 
 
+def test_rich_visualization_actions_are_validated():
+    from schemas.tutor import TutorResponse
+
+    lesson = {
+        'lesson_title': 'Solve and visualise',
+        'message': 'We solve the equation and check it with a graph.',
+        'spoken_explanation': 'The solution is x equals six.',
+        'steps': [
+            {
+                'id': 'step-1',
+                'title': 'Graph the line',
+                'layout': 'equation',
+                'narration': 'The graph shows every pair that satisfies the equation.',
+                'whiteboard_actions': [
+                    {'type': 'show_graph', 'id': 'graph-1', 'label': 'y = 2x + 5', 'points': [[0, 5], [3, 11]], 'x_label': 'x', 'y_label': 'y'},
+                    {'type': 'show_table', 'id': 'table-1', 'columns': ['x', 'y'], 'rows': [['0', '5'], ['3', '11']]},
+                ],
+            }
+        ],
+        'follow_up_question': None,
+        'board_summary': 'A graph and a value table.',
+    }
+
+    validated = TutorResponse.model_validate(lesson)
+    action_types = {action.type for action in validated.steps[0].whiteboard_actions}
+    assert action_types == {'show_graph', 'show_table'}
+    graph = validated.steps[0].whiteboard_actions[0]
+    assert graph.points == [[0, 5], [3, 11]]
+    assert graph.x_label == 'x'
+
+
 def test_flat_groq_action_payload_is_normalized():
     malformed = {
         'lesson_title': 'MLOps basics',

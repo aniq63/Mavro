@@ -201,6 +201,13 @@ export default function useLessonPlayback() {
     const nextScene = buildLessonScene(lesson)
     if (!nextScene) return null
 
+    // A conversational clarification may have no drawable actions. Keep the
+    // existing board intact instead of replacing it with an empty scene.
+    if (!nextScene.objects.length) {
+      setIsFollowUp(Boolean(sceneRef.current))
+      return { scene: null, empty: true }
+    }
+
     const previousScene = sceneRef.current
     const revealedBefore = new Set(revealedRef.current)
     stop()

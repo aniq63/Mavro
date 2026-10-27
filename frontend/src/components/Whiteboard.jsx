@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Check, ChevronDown, Eraser, Maximize2, MessageSquareText, Minimize2, Pause, Play, RotateCcw, Sparkles, Square, X } from 'lucide-react'
 import WhiteboardToolbar from './WhiteboardToolbar.jsx'
-import { BOARD_HEIGHT, BOARD_WIDTH, COLORS, applyObjectUpdates, wrapText } from '../services/lessonLayout.js'
+import { BOARD_HEIGHT, BOARD_WIDTH, COLORS, applyObjectUpdates } from '../services/lessonLayout.js'
 import { PALETTE } from '../theme.js'
 
 const makeId = () => globalThis.crypto?.randomUUID?.() ?? `element-${Date.now()}-${Math.random().toString(16).slice(2)}`
@@ -66,62 +66,70 @@ function BoardElement({ element, selected, onPointerDown }) {
 function SceneCode({ item, activeLine }) {
   const lines = Array.isArray(item.lines) ? item.lines : []
   const highlightedLine = activeLine ?? item.highlightedLine ?? 0
-  const lineHeight = 21
-  const top = item.y + 40
-  const visibleLines = Math.max(1, Math.floor((item.height - 38) / lineHeight))
-  const maxChars = Math.max(12, Math.floor((item.width - 66) / 7.1))
+  const fontSize = item.fontSize || 12
+  const lineHeight = item.lineHeight || 21
+  const contentTop = item.contentTop || item.y + 40
+  const visibleLines = item.visibleLines ?? lines.length
+  const shownLines = lines.slice(0, Math.max(1, visibleLines))
+  const maxChars = Math.max(12, Math.floor((item.width - 62) / Math.max(4.5, fontSize * 0.6)))
+  const firstBaseline = contentTop + fontSize + 2
+
   return (
     <g className="scene-code">
       <rect x={item.x} y={item.y} width={item.width} height={item.height} rx="12" className="lesson-code-card" />
-      <text x={item.x + 18} y={item.y + 22} className="code-caption">{truncate(item.label || 'CODE', 30)}</text>
-      <line x1={item.x + 16} x2={item.x + item.width - 16} y1={item.y + 30} y2={item.y + 30} className="code-separator" />
-      {lines.slice(0, visibleLines).map((line, index) => {
-        const lineY = top + index * lineHeight
+      <text x={item.x + 18} y={item.y + 21} className="code-caption">{truncate(item.label || 'CODE', 30)}</text>
+      <line x1={item.x + 16} x2={item.x + item.width - 16} y1={item.y + 29} y2={item.y + 29} className="code-separator" />
+      {shownLines.map((line, index) => {
+        const lineY = firstBaseline + index * lineHeight
         const isActive = highlightedLine === index + 1
         return (
-          <g key={`${item.id}-line-${index}`} className="wb-line-reveal" style={{ animationDelay: `${Math.min(index, 10) * 70}ms` }}>
-            {isActive && <rect x={item.x + 8} y={lineY - 15} width={item.width - 16} height={lineHeight - 2} rx="5" className="code-highlight" />}
-            <text x={item.x + 20} y={lineY} className="code-line-number">{String(index + 1).padStart(2, '0')}</text>
-            <text x={item.x + 46} y={lineY} className="lesson-code">{truncate(line || ' ', maxChars)}</text>
+          <g key={`${item.id}-line-${index}`} className="wb-line-reveal" style={{ animationDelay: `${Math.min(index, 10) * 55}ms` }}>
+            {isActive && <rect x={item.x + 8} y={lineY - fontSize - 2} width={item.width - 16} height={lineHeight - 2} rx="5" className="code-highlight" />}
+            <text x={item.x + 18} y={lineY} className="code-line-number" fontSize={Math.max(8, fontSize - 1)}>{String(index + 1).padStart(2, '0')}</text>
+            <text x={item.x + 44} y={lineY} className="lesson-code" fontSize={fontSize}>{truncate(line || ' ', maxChars)}</text>
           </g>
         )
       })}
+      {item.truncated && <text x={item.x + 18} y={item.y + item.height - 6} className="code-truncated">… {item.remainingLines} more line{item.remainingLines === 1 ? '' : 's'} continue in the next step</text>}
     </g>
   )
 }
 
 function SceneVariable({ item, active }) {
+  const lines = item.valueLines || [item.value || '—']
   return (
     <g className={`scene-state${active ? ' is-active' : ''}`}>
       <rect x={item.x} y={item.y} width={item.width} height={item.height} rx="9" className="lesson-state-card" />
-      <text x={item.x + 12} y={item.y + 16} className="state-label">{truncate(item.variableName || 'value', 20)}</text>
-      <text x={item.x + 12} y={item.y + 35} className="state-value">{truncate(item.value || '—', 28)}</text>
+      <text x={item.x + 10} y={item.y + 14} className="state-label" fontSize={item.labelFontSize || 7.5}>{truncate(item.variableName || 'value', 24)}</text>
+      {lines.map((line, index) => (
+        <text key={`${item.id}-value-${index}`} x={item.x + 10} y={item.y + 26 + index * (item.valueLineHeight || 15)} className="state-value" fontSize={item.valueFontSize || 11}>{truncate(line, 34)}</text>
+      ))}
     </g>
   )
 }
 
 function SceneOutput({ item, active }) {
+  const lines = item.valueLines || [item.value || '—']
   return (
     <g className={`scene-output${active ? ' is-active' : ''}`}>
       <rect x={item.x} y={item.y} width={item.width} height={item.height} rx="8" className="lesson-output-card" />
-      <text x={item.x + 12} y={item.y + item.height / 2 + 4} className="lesson-output-text">→ {truncate(item.value || '—', 34)}</text>
+      <text x={item.x + 10} y={item.y + 14} className="output-label" fontSize={item.labelFontSize || 7.5}>{truncate(item.label || 'OUTPUT', 22)}</text>
+      {lines.map((line, index) => (
+        <text key={`${item.id}-out-${index}`} x={item.x + 10} y={item.y + 27 + index * (item.valueLineHeight || 15)} className="lesson-output-text" fontSize={item.valueFontSize || 10.5}>{index === 0 ? '→ ' : '   '}{truncate(line, 34)}</text>
+      ))}
     </g>
   )
 }
 
 function SceneText({ item }) {
   const role = item.role || 'note'
-  const isEquation = role === 'equation'
-  const isHeading = role === 'heading'
-  const charsPerLine = isEquation ? 10 : isHeading ? 9.5 : 6.4
-  const chars = Math.max(14, Math.floor(item.width / charsPerLine))
-  const lines = wrapText(item.value, chars)
+  const lines = item.lines || [item.value || '']
   const x = item.align === 'middle' ? item.x + item.width / 2 : item.x
-  const startY = item.y + (isEquation ? 31 : isHeading ? 21 : 17)
-  const lineHeight = isEquation ? 31 : isHeading ? 21 : 16
-  const className = isEquation ? 'lesson-equation-text' : isHeading ? 'lesson-heading-text' : 'lesson-note-text'
+  const startY = item.y + (item.fontSize || 11)
+  const lineHeight = item.lineHeight || 17
+  const className = role === 'equation' ? 'lesson-equation-text' : role === 'heading' ? 'lesson-heading-text' : 'lesson-note-text'
   return (
-    <text x={x} y={startY} textAnchor={item.align === 'middle' ? 'middle' : 'start'} className={className}>
+    <text x={x} y={startY} textAnchor={item.align === 'middle' ? 'middle' : 'start'} className={className} fontSize={item.fontSize || 11}>
       {lines.map((line, index) => (
         <tspan key={`${item.id}-text-${index}`} x={x} dy={index === 0 ? 0 : lineHeight}>{line}</tspan>
       ))}
@@ -130,8 +138,9 @@ function SceneText({ item }) {
 }
 
 function SceneShape({ item, active, isTop, isBottom, isFront, isBack }) {
-  const labelLines = wrapText(item.label, Math.max(8, Math.floor(item.width / 8)))
-  const labelStart = item.cy - (labelLines.length - 1) * 7 - (item.value ? 5 : 0)
+  const labelLines = item.labelLines || [item.label || item.id]
+  const lineHeight = item.labelLineHeight || 14
+  const labelStart = item.labelStartY || item.cy - (labelLines.length - 1) * lineHeight / 2
   return (
     <g className={`scene-node${active ? ' is-active' : ''}`}>
       {item.shapeType === 'ellipse' || item.shapeType === 'circle' ? (
@@ -139,32 +148,139 @@ function SceneShape({ item, active, isTop, isBottom, isFront, isBack }) {
       ) : (
         <rect x={item.x} y={item.y} width={item.width} height={item.height} rx="11" className="lesson-node" fill={active ? COLORS.accentSoft : PALETTE.white} stroke={item.color || COLORS.accent} />
       )}
-      {labelLines.slice(0, 2).map((line, index) => (
-        <text key={`${item.id}-label-${index}`} x={item.cx} y={labelStart + index * 14} textAnchor="middle" className="lesson-node-label">{line}</text>
+      {labelLines.map((line, index) => (
+        <text key={`${item.id}-label-${index}`} x={item.cx} y={labelStart + index * lineHeight} textAnchor="middle" className="lesson-node-label" fontSize={item.labelFontSize || 12}>{line}</text>
       ))}
-      {item.value && <text x={item.cx} y={item.cy + 17} textAnchor="middle" className="lesson-node-value">{truncate(item.value, 24)}</text>}
-      {isTop && <text x={item.cx} y={item.y - 12} textAnchor="middle" className="structure-label">TOP</text>}
-      {isBottom && <text x={item.cx} y={item.y + item.height + 17} textAnchor="middle" className="structure-label">BOTTOM</text>}
-      {isFront && <text x={item.x - 8} y={item.y - 10} textAnchor="start" className="structure-label">FRONT</text>}
-      {isBack && <text x={item.x + item.width} y={item.y - 10} textAnchor="end" className="structure-label">BACK</text>}
+      {item.valueText && <text x={item.cx} y={item.valueY || item.cy + 17} textAnchor="middle" className="lesson-node-value">{truncate(item.valueText, 28)}</text>}
+      {isTop && <text x={item.cx} y={item.y - 8} textAnchor="middle" className="structure-label">TOP</text>}
+      {isBottom && <text x={item.cx} y={item.y + item.height + 13} textAnchor="middle" className="structure-label">BOTTOM</text>}
+      {isFront && <text x={item.x - 6} y={item.y - 7} textAnchor="start" className="structure-label">FRONT</text>}
+      {isBack && <text x={item.x + item.width} y={item.y - 7} textAnchor="end" className="structure-label">BACK</text>}
     </g>
   )
 }
 
-function SceneArrow({ item }) {
-  const geometry = item.geometry
-  if (!geometry) return null
-  const label = truncate(item.label, 30)
-  const labelWidth = Math.max(20, label.length * 5.4 + 12)
+function SceneArrowLines({ item }) {
+  const segments = item.geometry?.segments || []
+  if (!segments.length) return null
   return (
-    <g className="scene-arrow">
-      <line x1={geometry.x1} y1={geometry.y1} x2={geometry.x2} y2={geometry.y2} stroke={COLORS.boardArrow} strokeWidth="1.8" markerEnd="url(#teaching-arrow-head)" />
-      {label && (
-        <>
-          <rect x={geometry.labelX - labelWidth / 2} y={geometry.labelY - 10} width={labelWidth} height="18" rx="9" className="arrow-label-bg" />
-          <text x={geometry.labelX} y={geometry.labelY + 4} textAnchor="middle" className="arrow-label">{label}</text>
-        </>
-      )}
+    <g className="scene-arrow-lines">
+      {segments.map((segment, index) => (
+        <line
+          key={`${item.id}-segment-${index}`}
+          x1={segment.x1}
+          y1={segment.y1}
+          x2={segment.x2}
+          y2={segment.y2}
+          stroke={COLORS.boardArrow}
+          strokeWidth="1.8"
+          markerEnd={index === segments.length - 1 ? 'url(#teaching-arrow-head)' : undefined}
+        />
+      ))}
+    </g>
+  )
+}
+
+function SceneArrowLabel({ item }) {
+  const geometry = item.geometry
+  if (!geometry?.label) return null
+  return (
+    <g className="scene-arrow-label">
+      <rect x={geometry.labelX - geometry.labelWidth / 2} y={geometry.labelY - 9} width={geometry.labelWidth} height="18" rx="9" className="arrow-label-bg" />
+      <text x={geometry.labelX} y={geometry.labelY + 3.5} textAnchor="middle" className="arrow-label">{geometry.label}</text>
+    </g>
+  )
+}
+
+function SceneTable({ item, active }) {
+  const lines = item.headerLines || []
+  const rows = item.rowsData || []
+  const pad = item.pad || 12
+  const columnWidth = item.columnWidth || item.width / Math.max(1, item.columns?.length || 1)
+  const headerTop = item.y + pad + (item.title ? 20 : 0)
+  const headerBottom = headerTop + (item.headerHeight || 24)
+  const rowTops = []
+  let rowCursor = headerBottom
+  for (const height of item.rowHeights || []) {
+    rowTops.push(rowCursor)
+    rowCursor += height
+  }
+  return (
+    <g className={`scene-table${active ? ' is-active' : ''}`}>
+      <rect x={item.x} y={item.y} width={item.width} height={item.height} rx="10" className="lesson-table-card" />
+      {item.title && <text x={item.x + pad} y={item.y + pad + 12} className="table-title">{truncate(item.title, 44)}</text>}
+      <line x1={item.x + pad} x2={item.x + item.width - pad} y1={headerTop + (item.headerHeight || 24)} y2={headerTop + (item.headerHeight || 24)} className="code-separator" />
+      {lines.map((cellLines, column) => (
+        <text key={`${item.id}-head-${column}`} x={item.x + pad + column * columnWidth + 4} y={headerTop + (item.fontSize || 10) + 4} className="table-header" fontSize={item.fontSize || 10}>
+          {(cellLines || ['']).map((line, index) => <tspan key={index} x={item.x + pad + column * columnWidth + 4} dy={index === 0 ? 0 : item.lineHeight || 13}>{truncate(line, 18)}</tspan>)}
+        </text>
+      ))}
+      {rows.map((cells, rowIndex) => {
+        const top = rowTops[rowIndex] ?? headerBottom
+        return (
+          <g key={`${item.id}-row-${rowIndex}`}>
+            <line x1={item.x + pad} x2={item.x + item.width - pad} y1={top} y2={top} className="table-row-line" />
+            {cells.map((cellLines, column) => (
+              <text key={`${item.id}-cell-${rowIndex}-${column}`} x={item.x + pad + column * columnWidth + 4} y={top + 4 + (item.fontSize || 10)} className="table-cell" fontSize={item.fontSize || 10}>
+                {(cellLines || ['']).map((line, index) => <tspan key={index} x={item.x + pad + column * columnWidth + 4} dy={index === 0 ? 0 : item.lineHeight || 13}>{truncate(line, 18)}</tspan>)}
+              </text>
+            ))}
+          </g>
+        )
+      })}
+      {item.truncatedRows > 0 && <text x={item.x + pad} y={item.y + item.height - 6} className="code-truncated">+{item.truncatedRows} more row{item.truncatedRows === 1 ? '' : 's'}</text>}
+    </g>
+  )
+}
+
+function SceneGraph({ item, active }) {
+  const plot = item.plot
+  if (!plot) {
+    return (
+      <g className="scene-graph">
+        <rect x={item.x} y={item.y} width={item.width} height={item.height} rx="10" className="lesson-graph-card" />
+        <text x={item.x + 16} y={item.y + 26} className="graph-title">{truncate(item.title || 'Graph', 40)}</text>
+        <text x={item.x + 16} y={item.y + 48} className="graph-axis-label">No valid data points were provided.</text>
+      </g>
+    )
+  }
+  const left = item.x + plot.x
+  const top = item.y + plot.y
+  const gridLines = [0, 0.25, 0.5, 0.75, 1]
+  const zeroY = item.y + plot.y + (1 - (0 - plot.yMin) / (plot.yMax - plot.yMin)) * plot.height
+  const zeroX = item.x + plot.x + ((0 - plot.xMin) / (plot.xMax - plot.xMin)) * plot.width
+  return (
+    <g className={`scene-graph${active ? ' is-active' : ''}`}>
+      <rect x={item.x} y={item.y} width={item.width} height={item.height} rx="10" className="lesson-graph-card" />
+      {item.title && <text x={item.x + 16} y={item.y + 20} className="graph-title">{truncate(item.title, 40)}</text>}
+      {gridLines.map((ratio) => (
+        <g key={`${item.id}-grid-${ratio}`}>
+          <line x1={left} x2={left + plot.width} y1={top + ratio * plot.height} y2={top + ratio * plot.height} className="graph-grid" />
+          <line x1={left + ratio * plot.width} x2={left + ratio * plot.width} y1={top} y2={top + plot.height} className="graph-grid" />
+        </g>
+      ))}
+      {zeroY >= top && zeroY <= top + plot.height && <line x1={left} x2={left + plot.width} y1={zeroY} y2={zeroY} className="graph-axis" />}
+      {zeroX >= left && zeroX <= left + plot.width && <line x1={zeroX} x2={zeroX} y1={top} y2={top + plot.height} className="graph-axis" />}
+      {item.yTickLabels?.map((label, index) => (
+        <text key={`${item.id}-ytick-${index}`} x={left - 6} y={top + index * (plot.height / 2) + 3} textAnchor="end" className="graph-tick">{label}</text>
+      ))}
+      {item.xTickLabels?.map((label, index) => (
+        <text key={`${item.id}-xtick-${index}`} x={left + index * (plot.width / 2)} y={top + plot.height + 14} textAnchor={index === 0 ? 'start' : index === 2 ? 'end' : 'middle'} className="graph-tick">{label}</text>
+      ))}
+      {item.seriesGeometry?.map((series, seriesIndex) => (
+        <g key={`${item.id}-series-${seriesIndex}`}>
+          <polyline points={series.points.map((point) => `${point.x},${point.y}`).join(' ')} fill="none" stroke={series.color} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+          {series.points.map((point, pointIndex) => <circle key={`${item.id}-point-${seriesIndex}-${pointIndex}`} cx={point.x} cy={point.y} r="2.6" fill={series.color} />)}
+        </g>
+      ))}
+      {item.xLabel && <text x={left + plot.width} y={top + plot.height + 27} textAnchor="end" className="graph-axis-label">{item.xLabel}</text>}
+      {item.yLabel && <text x={left - 30} y={top - 4} className="graph-axis-label">{item.yLabel}</text>}
+      {item.seriesGeometry?.length > 1 && item.seriesGeometry.map((series, index) => (
+        <g key={`${item.id}-legend-${index}`}>
+          <rect x={item.x + item.width - 16 - (index + 1) * 92} y={item.y + 12} width="8" height="8" rx="2" fill={series.color} />
+          <text x={item.x + item.width - 4 - (index + 1) * 92} y={item.y + 19} className="graph-legend">{truncate(series.label, 12)}</text>
+        </g>
+      ))}
     </g>
   )
 }
@@ -181,66 +297,75 @@ function EmptyLessonLayer() {
 function LessonScene({ scene, revealedKeys, currentStepIndex }) {
   if (!scene) return <EmptyLessonLayer />
   const revealed = revealedKeys || new Set()
-  const visible = scene.objects
-    .filter((object) => revealed.has(object.key))
+  const objects = Array.isArray(scene.objects) ? scene.objects : []
+  const visible = objects
+    .filter((object) => object && revealed.has(object.key))
     .map((object) => applyObjectUpdates(object, revealed))
   const shapes = visible.filter((object) => object.kind === 'shape')
   const arrows = visible.filter((object) => object.kind === 'arrow')
   const codeBlocks = visible.filter((object) => object.kind === 'code')
   const texts = visible.filter((object) => object.kind === 'text')
+  const tables = visible.filter((object) => object.kind === 'table')
+  const graphs = visible.filter((object) => object.kind === 'graph')
   const variables = visible.filter((object) => object.kind === 'variable')
   const outputs = visible.filter((object) => object.kind === 'output')
-  const allShapes = scene.objects.filter((object) => object.kind === 'shape')
+  const allShapes = objects.filter((object) => object.kind === 'shape')
   const shapeRank = new Map(allShapes.map((object, index) => [object.id, index]))
-  const currentStep = scene.steps[currentStepIndex]
+  const currentStep = scene.steps?.[currentStepIndex]
   const activeTargets = new Set()
-  let activeCodeLine = 0
+  let activeCodeLine = null
 
   for (const action of currentStep?.actions || []) {
     const raw = action.raw || {}
     const target = String(raw.target_id ?? raw.id ?? '').trim()
-    if (target && ['show_variable', 'show_output', 'add_shape', 'update_element', 'highlight_element'].includes(action.type)) {
+    if (target && ['show_variable', 'show_output', 'show_table', 'show_graph', 'add_shape', 'update_element', 'highlight_element'].includes(action.type)) {
       activeTargets.add(target)
     }
-    if (action.type === 'highlight_code') activeCodeLine = Math.max(activeCodeLine, Number(raw.line) || 0)
+    if (action.type === 'highlight_code') activeCodeLine = Number(raw.line) || null
   }
+
+  const bodyTransform = scene.fitTransform || undefined
 
   return (
     <g className="teaching-layer" aria-label={`Teaching lesson: ${scene.title}`}>
-      <text x="56" y="29" className="scene-kicker">{scene.layout.toUpperCase()} · LESSON</text>
+      <text x="56" y="29" className="scene-kicker">{String(scene.layout || 'concept').toUpperCase()} · LESSON</text>
       <text x="56" y="52" className="scene-title">{truncate(scene.title, 54)}</text>
       {currentStep && <text x="944" y="29" textAnchor="end" className="scene-step-label">{`STEP ${currentStepIndex + 1} / ${scene.steps.length}`}</text>}
       {currentStep && <text x="944" y="52" textAnchor="end" className="scene-step-title">{truncate(currentStep.title, 34)}</text>}
 
-      {!visible.length && <text x="500" y="320" textAnchor="middle" className="lesson-footnote">Preparing the board…</text>}
+      <g className="teaching-body" transform={bodyTransform}>
+        {!visible.length && <text x="500" y="320" textAnchor="middle" className="lesson-footnote">Preparing the board…</text>}
 
-      {arrows.map((item) => <SceneArrow key={item.key} item={item} />)}
-      {shapes.map((item) => {
-        const rank = shapeRank.get(item.id)
-        return (
-          <SceneShape
-            key={item.key}
-            item={item}
-            active={activeTargets.has(item.id)}
-            isTop={scene.structure === 'stack' && rank === allShapes.length - 1}
-            isBottom={scene.structure === 'stack' && rank === 0}
-            isFront={scene.structure === 'queue' && rank === 0}
-            isBack={scene.structure === 'queue' && rank === allShapes.length - 1}
-          />
-        )
-      })}
-      {codeBlocks.map((item) => <SceneCode key={item.key} item={item} activeLine={activeCodeLine} />)}
-      {texts.map((item) => <SceneText key={item.key} item={item} />)}
-      {variables.map((item) => <SceneVariable key={item.key} item={item} active={activeTargets.has(item.id)} />)}
-      {outputs.map((item) => <SceneOutput key={item.key} item={item} active={activeTargets.has(item.id)} />)}
+        {arrows.map((item) => <SceneArrowLines key={`${item.key}-line`} item={item} />)}
+        {shapes.map((item) => {
+          const rank = shapeRank.get(item.id)
+          return (
+            <SceneShape
+              key={item.key}
+              item={item}
+              active={activeTargets.has(item.id)}
+              isTop={scene.structure === 'stack' && rank === allShapes.length - 1}
+              isBottom={scene.structure === 'stack' && rank === 0}
+              isFront={scene.structure === 'queue' && rank === 0}
+              isBack={scene.structure === 'queue' && rank === allShapes.length - 1}
+            />
+          )
+        })}
+        {codeBlocks.map((item) => <SceneCode key={item.key} item={item} activeLine={activeCodeLine} />)}
+        {texts.map((item) => <SceneText key={item.key} item={item} />)}
+        {tables.map((item) => <SceneTable key={item.key} item={item} active={activeTargets.has(item.id)} />)}
+        {graphs.map((item) => <SceneGraph key={item.key} item={item} active={activeTargets.has(item.id)} />)}
+        {variables.map((item) => <SceneVariable key={item.key} item={item} active={activeTargets.has(item.id)} />)}
+        {outputs.map((item) => <SceneOutput key={item.key} item={item} active={activeTargets.has(item.id)} />)}
+        {arrows.map((item) => <SceneArrowLabel key={`${item.key}-label`} item={item} />)}
+      </g>
 
-      {scene.layout === 'code' && (variables.length > 0 || outputs.length > 0) && <text x={scene.hasCode && scene.structure ? 56 : 648} y={scene.hasCode && scene.structure ? 510 : 73} className="steps-title">STATE</text>}
-      <text x="933" y="614" className="board-watermark">MAVRO · LESSON</text>
+      <text x="933" y="640" className="board-watermark">MAVRO · LESSON</text>
     </g>
   )
 }
 
-export default function Whiteboard({ elements, addElement, updateElement, removeElement, canUndo, canRedo, undo, redo, clear, boardTab, setBoardTab, onAskAboutBoard, scene, revealedKeys, playback }) {
+export default function Whiteboard({ elements, addElement, updateElement, removeElement, canUndo, canRedo, undo, redo, clear, boardTab, setBoardTab, onAskAboutBoard, scene, revealedKeys, playback, isLoading = false, lessonError = '' }) {
   const svgRef = useRef(null)
   const whiteboardRef = useRef(null)
   const erasingRef = useRef(false)
@@ -262,17 +387,21 @@ export default function Whiteboard({ elements, addElement, updateElement, remove
   const totalSteps = scene?.steps?.length || 0
   const stepNumber = totalSteps ? Math.min((play.currentStepIndex || 0) + 1, totalSteps) : 0
   const canControl = Boolean(scene && play.hasLesson)
-  const statusLabel = play.isPaused
-    ? 'PAUSED'
-    : play.status === 'loading'
-      ? 'PREPARING VOICE'
-      : play.isPlaying
-        ? 'NARRATING'
-        : play.isFinished
-          ? 'LESSON COMPLETE'
-          : scene
-            ? 'READY TO REPLAY'
-            : 'READY'
+  const statusLabel = isLoading
+    ? 'PREPARING LESSON'
+    : lessonError
+      ? 'NEEDS ATTENTION'
+      : play.isPaused
+        ? 'PAUSED'
+        : play.status === 'loading'
+          ? 'PREPARING VOICE'
+          : play.isPlaying
+            ? 'NARRATING'
+            : play.isFinished
+              ? 'LESSON COMPLETE'
+              : scene
+                ? 'READY TO REPLAY'
+                : 'READY'
   const progress = totalSteps ? Math.round((stepNumber / totalSteps) * 100) : 0
   const toolHint = tool === 'pen' ? 'Draw anywhere on the board' : tool === 'text' ? 'Click to add a note' : tool === 'eraser' ? 'Drag over your marks to erase' : 'Click and drag to interact'
 
@@ -445,6 +574,9 @@ export default function Whiteboard({ elements, addElement, updateElement, remove
         </svg>}
         {textPrompt && <form className="board-text-prompt" style={textPromptStyle} onSubmit={saveText}><input autoFocus aria-label="Text to add to whiteboard" value={textValue} onChange={(event) => setTextValue(event.target.value)} placeholder="Write a note…" maxLength={120} /><button type="submit" aria-label="Add text" disabled={!textValue.trim()}><Check size={14} /></button><button type="button" aria-label="Cancel text" onClick={() => setTextPrompt(null)}><X size={14} /></button></form>}
         {selectedId && tool === 'select' && <button className="deselect-hint" type="button" onClick={() => setSelectedId(null)}><X size={12} /> Deselect</button>}
+        {boardTab === 'lesson' && isLoading && !scene && <div className="board-status-overlay" role="status" aria-live="polite"><div className="board-status-card"><span className="board-spinner" aria-hidden="true" /><b>Preparing your lesson</b><span>Mavro is structuring the explanation and drawing the board…</span></div></div>}
+        {boardTab === 'lesson' && lessonError && !isLoading && !scene && <div className="board-status-overlay" role="alert"><div className="board-status-card is-error"><b>Could not draw this lesson</b><span>{lessonError}</span><span className="board-status-hint">Ask again or switch to My notes to keep working.</span></div></div>}
+        {boardTab === 'lesson' && scene && (isLoading || lessonError) && <div className={`board-update-chip${lessonError ? ' is-error' : ''}`} role="status">{lessonError || 'Updating board…'}</div>}
         {boardTab === 'lesson' && scene && <div className="lesson-step-meter" aria-hidden="true"><span style={{ width: `${progress}%` }} /></div>}
       </div>
       <div className="board-footer"><div><span className="board-cursor-icon">⌖</span><span>{scene ? 'Narration advances each step · notes stay separate' : 'Student notes and tutor visuals are kept separate'}</span></div><button type="button" onClick={onAskAboutBoard}>Ask about this lesson <ChevronDown size={13} /></button></div>
